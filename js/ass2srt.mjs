@@ -1,3 +1,5 @@
+// Original: 0_JavaScript/0_OwnProject/AssToSrt
+
 ///@ts-check
 import fs from "fs";
 import { SrtEntry, Timestamp } from "./srtutils.mjs";

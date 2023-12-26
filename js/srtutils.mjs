@@ -41,12 +41,15 @@ class Timestamp{
      * @param {string} str string of format "HH:mm:ss,millisec" 
      */
     static from(str){
+        let numColons = str.split(":").length-1;
+
         let newEntry = new Timestamp();
-        let colonIndex = 0;
-        let hours = parseInt(str.substring(0, colonIndex = str.indexOf(':', colonIndex)));
-        let mins = parseInt(str.substring(colonIndex+1, colonIndex = str.indexOf(':', colonIndex+1)));
-        let secs = parseInt(str.substring(colonIndex+1, colonIndex = str.indexOf(',', colonIndex+1)));
-        let milsecs = parseInt(str.substring(colonIndex+1));
+        const result = str.match(/(..)?:?(..):(..),(...)/);
+        if(!result) throw new Error("Bad timestamp format");
+        let hours = parseInt(result[1] ?? 0);
+        let mins = parseInt(result[2] ?? 0);
+        let secs = parseInt(result[3] ?? 0);
+        let milsecs = parseInt(result[4] ?? 0);
         newEntry.totalMs = hours * 60 * 60 * 1000 + mins * 60 * 1000 + secs * 1000 + milsecs;
         newEntry.originalMs = newEntry.totalMs;
         return newEntry;
@@ -86,6 +89,8 @@ class SrtEntry{
     }
 
     /**
+     * Takes 1 entry.
+     * 
      * Takes format:
      * ```srt
      * seq
@@ -104,6 +109,34 @@ class SrtEntry{
         
         let subtitle = "";
         for(let i = 2; i < lines.length; i++){
+            subtitle += lines[i].trim() + " ";
+        }
+        newEntry.subtitle = subtitle.trim();
+        return newEntry;
+    }
+
+    /**
+     * Takes 1 entry.
+     * 
+     * Takes format:
+     * ```vtt
+     * 00:34.670 --> 00:36.290
+     * <b>subtitle 1</b>
+     * ```
+     * @param {string[]} lines 
+     * @param {number} seq 
+     */
+    static fromVtt(lines, seq = 1){
+        let newEntry = new SrtEntry();
+        newEntry.seq = seq;
+
+        lines[0] = lines[0].replaceAll(".", ",");
+        let fromTo = lines[0].split("-->");
+        newEntry.from = Timestamp.from(fromTo[0].trim());
+        newEntry.to = Timestamp.from(fromTo[1].trim());
+        
+        let subtitle = "";
+        for(let i = 1; i < lines.length; i++){
             subtitle += lines[i].trim() + " ";
         }
         newEntry.subtitle = subtitle.trim();
@@ -137,6 +170,40 @@ class SrtParser{
         }
         if(oneEntry.length > 0)
             result.push(SrtEntry.from(oneEntry));
+        return result;
+    }
+
+    /**
+     * Takes format:
+     * ```vtt
+     * WEBVTT
+     * 
+     * 00:34.670 --> 00:36.290
+     * <b>subtitle 1</b>
+
+     * 00:36.290 --> 00:39.330
+     * <b>subtitle 
+     * 2</b>
+     * ```
+     * @param {string} fileContent 
+     */
+    static fromVtt(fileContent){
+        let result = [];
+        let oneEntry = [];
+        let seq = 1;
+        for(let line of fileContent.split("\n")){
+            if(line.trim() === "WEBVTT") continue;
+            if(line.trim() === ""){
+                if(oneEntry.length < 2) 
+                    continue;
+                result.push(SrtEntry.fromVtt(oneEntry, seq++));
+                oneEntry = [];
+                continue;
+            }
+            oneEntry.push(line);
+        }
+        if(oneEntry.length > 0)
+            result.push(SrtEntry.fromVtt(oneEntry, seq++));
         return result;
     }
 }
